@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
-namespace TagayraASE
+namespace ASEGraphics
 {
     /// <summary>
     /// Main form for the GraphicalProgrammingEnvironmentASE application.
@@ -323,10 +323,12 @@ namespace TagayraASE
             get { return Backgroudcolor; }
         }
 
+        /*
         public TextBox TextBox1
         {
             get { return textBox1; }
         }
+        */
 
         public string FeedbackMessage
         {

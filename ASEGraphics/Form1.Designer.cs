@@ -1,4 +1,4 @@
-﻿namespace TagayraASE
+﻿namespace ASEGraphics
 {
     partial class Form1
     {

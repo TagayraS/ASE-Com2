@@ -20,7 +20,7 @@ namespace ASEGraphics
 
         Bitmap bitmap1 = new Bitmap(411, 414);
         Bitmap bitmap2 = new Bitmap(411, 414);
-        Pen pen = new Pen(Color.Orange, 2);
+        Pen pen = new Pen(Color.Yellow, 2);
         Boolean GiveBoolForFillColor = false;
         Color Backgroudcolor = Color.Black;
         Graphics g;
@@ -45,17 +45,13 @@ namespace ASEGraphics
         /// </summary>
         /// <param name="sender">The sender.</param>
         /// <param name="e">The <see cref="PaintEventArgs"/> instance containing the event data.</param>
-        public void pictureBox1_Paint(object sender, PaintEventArgs e)
+        private void pictureBox1_Paint(object sender, PaintEventArgs e)
         {
-            e.Graphics.DrawImage(bitmap1, 0, 0); // Draw the persistent bitmap
-            int crescentSize = 20;
-            int halfSize = crescentSize / 2;
+            Graphics g = e.Graphics;
+            g.DrawImageUnscaled(bitmap1, 0, 0);
+            g.DrawImageUnscaled(bitmap2, 0, 0);
+            e.Graphics.DrawEllipse(pen, penposition.X, penposition.Y, 10, 10);
 
-            GraphicsPath path = new GraphicsPath();
-            path.AddEllipse(penposition.X - halfSize, penposition.Y - halfSize, crescentSize, crescentSize);
-            path.AddEllipse(penposition.X - halfSize - crescentSize / 2, penposition.Y - halfSize, crescentSize, crescentSize);
-
-            e.Graphics.FillPath(Brushes.Yellow, path);
         }
         /// <summary>
         /// Event handler for the button click event.

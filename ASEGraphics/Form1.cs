@@ -9,7 +9,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace ASEGraphics
 {
@@ -21,7 +20,7 @@ namespace ASEGraphics
 
         Bitmap bitmap1 = new Bitmap(411, 414);
         Bitmap bitmap2 = new Bitmap(411, 414);
-        Pen pen = new Pen(Color.Yellow, 2);
+        Pen pen = new Pen(Color.Orange, 2);
         Boolean GiveBoolForFillColor = false;
         Color Backgroudcolor = Color.Black;
         Graphics g;
@@ -46,13 +45,17 @@ namespace ASEGraphics
         /// </summary>
         /// <param name="sender">The sender.</param>
         /// <param name="e">The <see cref="PaintEventArgs"/> instance containing the event data.</param>
-        private void pictureBox1_Paint(object sender, PaintEventArgs e)
+        public void pictureBox1_Paint(object sender, PaintEventArgs e)
         {
-            Graphics g = e.Graphics;
-            g.DrawImageUnscaled(bitmap1, 0, 0);
-            g.DrawImageUnscaled(bitmap2, 0, 0);
-            e.Graphics.DrawEllipse(pen, penposition.X, penposition.Y, 10, 10);
+            e.Graphics.DrawImage(bitmap1, 0, 0); // Draw the persistent bitmap
+            int crescentSize = 20;
+            int halfSize = crescentSize / 2;
 
+            GraphicsPath path = new GraphicsPath();
+            path.AddEllipse(penposition.X - halfSize, penposition.Y - halfSize, crescentSize, crescentSize);
+            path.AddEllipse(penposition.X - halfSize - crescentSize / 2, penposition.Y - halfSize, crescentSize, crescentSize);
+
+            e.Graphics.FillPath(Brushes.Yellow, path);
         }
         /// <summary>
         /// Event handler for the button click event.
@@ -62,6 +65,7 @@ namespace ASEGraphics
 
         public void button1_Click(object sender, EventArgs e)
         {
+
             if (!string.IsNullOrEmpty(textBox1.Text) & string.IsNullOrEmpty(textBox2.Text))
             {
 
@@ -323,12 +327,10 @@ namespace ASEGraphics
             get { return Backgroudcolor; }
         }
 
-        /*
         public TextBox TextBox1
         {
             get { return textBox1; }
         }
-        */
 
         public string FeedbackMessage
         {
@@ -434,11 +436,6 @@ namespace ASEGraphics
         }
 
         private void pictureBox1_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void textBox1_TextChanged_1(object sender, EventArgs e)
         {
 
         }

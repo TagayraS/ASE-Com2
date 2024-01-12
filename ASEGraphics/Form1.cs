@@ -6,7 +6,9 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -26,7 +28,14 @@ namespace ASEGraphics
         Graphics g;
         Point penposition;
         private string feedbackMessage;
+        private Variables variables = new Variables();
+        private IfStatement ifStatement = new IfStatement();
+        
 
+        private Loop loop = new Loop();
+        string converttostring;
+        string storeSinglelineCode;
+        string[] convertstostring;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Form1"/> class.
@@ -40,12 +49,14 @@ namespace ASEGraphics
 
         }
 
+
+
         /// <summary>
         /// Event handler for painting the PictureBox.
         /// </summary>
         /// <param name="sender">The sender.</param>
         /// <param name="e">The <see cref="PaintEventArgs"/> instance containing the event data.</param>
-        private void pictureBox1_Paint(object sender, PaintEventArgs e)
+        public void pictureBox1_Paint(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
             g.DrawImageUnscaled(bitmap1, 0, 0);
@@ -53,6 +64,8 @@ namespace ASEGraphics
             e.Graphics.DrawEllipse(pen, penposition.X, penposition.Y, 10, 10);
 
         }
+
+
         /// <summary>
         /// Event handler for the button click event.
         /// </summary>
@@ -61,28 +74,188 @@ namespace ASEGraphics
 
         public void button1_Click(object sender, EventArgs e)
         {
-
-            if (!string.IsNullOrEmpty(textBox1.Text) & string.IsNullOrEmpty(textBox2.Text))
+            if (!string.IsNullOrEmpty(textBox1.Text) && !string.IsNullOrEmpty(textBox3.Text) && string.IsNullOrEmpty(textBox2.Text))
             {
+                Thread thread1 = new Thread(() => ProcessCommands(textBox1.Lines));
+                Thread thread2 = new Thread(() => ProcessCommands(textBox3.Lines));
 
-                string[] converttostring = textBox1.Lines;
-                foreach (string commandline in converttostring)
+                thread1.Start();
+                thread2.Start();
+
+                if (!string.IsNullOrEmpty(textBox1.Text))
                 {
-                    string storeSinglelineCode = Convert.ToString(commandline);
+                    thread1 = new Thread(() => ProcessCommands(textBox1.Lines));
+                    thread1.Start();
+                }
+                else if (!string.IsNullOrEmpty(textBox3.Text))
+                {
+                    thread2 = new Thread(() => ProcessCommands(textBox3.Lines));
+                    thread2.Start();
+                }
+            }
+            else if ((!string.IsNullOrEmpty(textBox1.Text) && string.IsNullOrEmpty(textBox2.Text) && string.IsNullOrEmpty(textBox3.Text)) || (!string.IsNullOrEmpty(textBox3.Text) && string.IsNullOrEmpty(textBox2.Text) && string.IsNullOrEmpty(textBox1.Text)))
+            {
+                if (!string.IsNullOrEmpty(textBox1.Text) && string.IsNullOrEmpty(textBox2.Text) && string.IsNullOrEmpty(textBox3.Text))
+                {
+                    convertstostring = textBox1.Lines;
+                }
+                if (!string.IsNullOrEmpty(textBox3.Text) && string.IsNullOrEmpty(textBox2.Text) && string.IsNullOrEmpty(textBox1.Text))
+                {
+                    convertstostring = textBox3.Lines;
+                }
+
+                foreach (string commandline in convertstostring)
+                {
+                    storeSinglelineCode = Convert.ToString(commandline);
                     storeSinglelineCode = storeSinglelineCode.ToLower();
                     string[] addCommandToList = storeSinglelineCode.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    CommandsInCommandLine(addCommandToList);          //function that runs all command 
+
+                    if (loop.IsLoopStartCommand(storeSinglelineCode))
+                    {
+                        // Call LoopCommand to handle the loop
+                        LoopCommand(storeSinglelineCode);
+                    }
+                    else
+                    {
+                        CommandsInCommandLine(addCommandToList);
+                    }
                 }
             }
 
-            else if (!string.IsNullOrEmpty(textBox2.Text) & string.IsNullOrEmpty(textBox1.Text))
+            else if (!string.IsNullOrEmpty(textBox2.Text) && string.IsNullOrEmpty(textBox1.Text) && string.IsNullOrEmpty(textBox3.Text))
             {
-                string converttostring = textBox2.Text.ToString();
+                converttostring = textBox2.Text.ToString();
                 converttostring = converttostring.ToLower();
                 string[] getcommand = converttostring.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 CommandsInCommandLine(getcommand);
             }
+        }
 
+        private void ProcessCommands(string[] commandLines)
+        {
+            Point initialPenPosition = penposition;
+            Point lastMovetoPosition = initialPenPosition;
+
+            foreach (string commandLine in commandLines)
+            {
+                string storeSinglelineCode = Convert.ToString(commandLine);
+                storeSinglelineCode = storeSinglelineCode.ToLower();
+                string[] addCommandToList = storeSinglelineCode.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                Invoke(new Action(() =>
+                {
+                    if (addCommandToList.Length > 0)
+                    {
+                        for (int i = 0; i < addCommandToList.Length; i++)
+                        {
+                            if (variables.GetVariable(addCommandToList[i]) != 0)
+                            {
+                                addCommandToList[i] = variables.GetVariable(addCommandToList[i]).ToString();
+                            }
+                        }
+
+                        if (addCommandToList[0] == "moveto")
+                        {
+                            if (addCommandToList.Length == 3)
+                            {
+                                if (int.TryParse(addCommandToList[1], out int valueforxaxis) &&
+                                    int.TryParse(addCommandToList[2], out int valueforyaxis))
+                                {
+                                    penposition = new Point(valueforxaxis, valueforyaxis);
+                                    lastMovetoPosition = penposition; // Update the last moveto position
+                                    Thread.Sleep(1000); // Adjust the sleep duration as needed
+                                    pictureBox1.Refresh();
+                                }
+                                else
+                                {
+                                    SetFeedbackMessage("Invalid arguments for moveto command.");
+                                }
+                            }
+                            else
+                            {
+                                SetFeedbackMessage("Incorrect amount of arguments for moveto command.");
+                            }
+                        }
+                        else
+                        {
+                            CommandsInCommandLine(addCommandToList);
+                            Thread.Sleep(1000);
+                            pictureBox1.Refresh();
+                        }
+                    }
+                }));
+
+                // Move the pen back to the initial position after each set of commands
+                penposition = lastMovetoPosition;
+            }
+        }
+
+        public void button2_Click(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrEmpty(textBox2.Text) && string.IsNullOrEmpty(textBox1.Text))
+            {
+                string convertToString = textBox2.Text.ToLower();
+                string[] commandLines = convertToString.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+                List<string> invalidCommands = new List<string>();
+
+                foreach (string commandLine in commandLines)
+                {
+                    string[] getCommand = commandLine.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    string validationMessage = SyntaxChecker.ValidateSyntax(getCommand);
+
+                    if (!validationMessage.StartsWith("Syntax is correct"))
+                    {
+                        invalidCommands.Add($"Invalid command in line: '{commandLine}' {validationMessage}");
+                    }
+                }
+
+                if (invalidCommands.Count == 0)
+                {
+                    // Perform the appropriate action for the commands in textBox2
+                    // For example, you can call CommandsInCommandLine(getCommand);
+                    MessageBox.Show("Syntax is correct.");
+                }
+                else
+                {
+                    MessageBox.Show(string.Join("\n", invalidCommands));
+                }
+            }
+            else if (string.IsNullOrEmpty(textBox2.Text) && !string.IsNullOrEmpty(textBox1.Text))
+            {
+                string convertToString = textBox1.Text.ToLower();
+                string[] commandLines = convertToString.Split(new char[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+
+                List<string> invalidCommands = new List<string>();
+
+                foreach (string commandLine in commandLines)
+                {
+                    string[] getCommand = commandLine.Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    string validationMessage = SyntaxChecker.ValidateSyntax(getCommand);
+
+                    if (!validationMessage.StartsWith("Syntax is correct"))
+                    {
+                        invalidCommands.Add($"Invalid command in line: '{commandLine}' {validationMessage}");
+                    }
+                }
+
+                if (invalidCommands.Count == 0)
+                {
+                    // Perform the appropriate action for the commands in textBox1
+                    // For example, you can call CommandsInCommandLine(getCommand);
+                    MessageBox.Show("Syntax is correct.");
+                }
+                else
+                {
+                    MessageBox.Show(string.Join("\n", invalidCommands));
+                }
+            }
+            else
+            {
+                MessageBox.Show("Please enter commands in either textBox1 or textBox2.");
+            }
         }
 
         /// <summary>
@@ -99,210 +272,389 @@ namespace ASEGraphics
                 return;
             }
 
-            switch (listForCommands[0].ToLower())
+
+            else if (listForCommands.Length >= 3 && listForCommands[1].Equals("="))
             {
-                case "rectangle":
-                    if (listForCommands.Length == 3)
+
+                // Variable assignment, e.g., x = 50
+                string variableName = listForCommands[0];
+
+                // Join all parts after the equal sign, then trim the expression
+                string expression = string.Join(" ", listForCommands.Skip(2)).Trim();
+
+                try
+                {
+
+                    if (int.TryParse(expression, out int variableValue))
                     {
-                        if (int.TryParse(listForCommands[1], out int valueForWidth) &&
-                            int.TryParse(listForCommands[2], out int valueForHeight))
+                        variables.SetVariable(variableName, variableValue);
+                    }
+                    else
+                    {
+                        int result = variables.EvaluateExpression(expression);
+                        variables.SetVariable(variableName, result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    SetFeedbackMessage($"Error evaluating expression: {ex.Message}");
+                }
+            }
+            else
+            {
+                // Check for variable usage in the command
+                for (int i = 0; i < listForCommands.Length; i++)
+                {
+                    if (variables.GetVariable(listForCommands[i]) != 0)
+                    {
+                        listForCommands[i] = variables.GetVariable(listForCommands[i]).ToString();
+                    }
+                }
+
+
+                switch (listForCommands[0].ToLower())
+                {
+                    case "if":
+                        ExecuteIfStatement(listForCommands);
+                        break;
+
+                    case "endif":
+                        // Reset the SkipCommands flag
+                        ifStatement.SkipCommands = false;
+                        break;
+
+                    case "rectangle":
+                        if (listForCommands.Length == 3)
                         {
-                            if (valueForWidth > 0 && valueForHeight > 0)
-                            {
-                                command.DrawRectangle(command, GiveBoolForFillColor, valueForHeight, valueForWidth);
-                                pictureBox1.Refresh();
-                            }
-                            else
-                            {
-                                SetFeedbackMessage("Width and height must be greater than zero for rectangle command.");
+                            if (!ifStatement.SkipCommands)
+                            {  // Check if commands should be skipped
+                                if (int.TryParse(listForCommands[1], out int valueForWidth) &&
+                                int.TryParse(listForCommands[2], out int valueForHeight))
+                                {
+                                    if (valueForWidth > 0 && valueForHeight > 0)
+                                    {
+                                        command.DrawRectangle(command, GiveBoolForFillColor, valueForHeight, valueForWidth);
+                                        pictureBox1.Refresh();
+                                    }
+                                    else
+                                    {
+                                        SetFeedbackMessage("Width and height must be greater than zero for rectangle command.");
+                                    }
+                                }
+                                else
+                                {
+                                    SetFeedbackMessage("Invalid arguments for rectangle command.");
+                                }
                             }
                         }
                         else
                         {
-                            SetFeedbackMessage("Invalid arguments for rectangle command.");
+                            SetFeedbackMessage("Insufficient arguments for rectangle command.");
                         }
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Incorrect amount of arguments for rectangle command");
-                    }
-                    break;
+                        break;
+
+                    case "triangle":
 
 
-                case "triangle":
-                    if (listForCommands.Length == 2 || listForCommands.Length == 4)
-                    {
-                        if (int.TryParse(listForCommands[1], out int valueforsidelength))
+                        if (listForCommands.Length == 2 || listForCommands.Length == 4)
                         {
-                            if (valueforsidelength > 0)
+                            // Check if commands should be skipped
+                            if (!ifStatement.SkipCommands)
                             {
-                                command.DrawTriangle(command, GiveBoolForFillColor, valueforsidelength);
-                                pictureBox1.Refresh();
-                            }
-                            else
-                            {
-                                SetFeedbackMessage("Negative or zero parameter for triangle command.");
-                            }
-                        }
-                        else
-                        {
-                            SetFeedbackMessage("Invalid argument for triangle command.");
-                        }
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Incorect amount of arguments for triangle command.");
-                    }
-                    break;
-
-                case "circle":
-                    if (listForCommands.Length == 2)
-                    {
-                        if (int.TryParse(listForCommands[1], out int valueforradius))
-                        {
-                            if (valueforradius > 0)
-                            {
-                                command.DrawCircle(command, GiveBoolForFillColor, valueforradius);
-                                pictureBox1.Refresh();
-                            }
-                            else
-                            {
-                                SetFeedbackMessage("Negative or zero parameter for circle command.");
+                                if (int.TryParse(listForCommands[1], out int valueforsidelength))
+                                {
+                                    if (valueforsidelength > 0)
+                                    {
+                                        command.DrawTriangle(command, GiveBoolForFillColor, valueforsidelength);
+                                        pictureBox1.Refresh();
+                                    }
+                                    else
+                                    {
+                                        SetFeedbackMessage("Negative or zero parameter for triangle command.");
+                                    }
+                                }
+                                else
+                                {
+                                    SetFeedbackMessage("Invalid argument for triangle command.");
+                                }
                             }
                         }
                         else
                         {
-                            SetFeedbackMessage("Invalid argument for circle command.");
+                            SetFeedbackMessage("Incorrect amount of arguments for triangle command.");
                         }
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Incorect amount of arguments for circle command.");
-                    }
-                    break;
+                        break;
 
-                case "moveto":
-                    if (listForCommands.Length == 3)
-                    {
-                        if (int.TryParse(listForCommands[1], out int valueforxaxis) &&
-                            int.TryParse(listForCommands[2], out int valueforyaxis))
+                    case "circle":
+                        if (listForCommands.Length == 2)
                         {
-                            penposition = new Point(valueforxaxis, valueforyaxis);
+                            if (!ifStatement.SkipCommands)
+                            {// Check if commands should be skipped
+
+                                if (int.TryParse(listForCommands[1], out int valueforradius))
+                                {
+                                    if (valueforradius > 0)
+                                    {
+                                        command.DrawCircle(command, GiveBoolForFillColor, valueforradius);
+                                        pictureBox1.Refresh();
+                                    }
+                                    else
+                                    {
+                                        SetFeedbackMessage("Negative or zero parameter for circle command.");
+                                    }
+                                }
+                                else
+                                {
+                                    SetFeedbackMessage("Invalid argument for circle command.");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            SetFeedbackMessage("Incorrect amount of arguments for circle command.");
+                        }
+                        break;
+
+                    case "moveto":
+                        if (listForCommands.Length == 3)
+                        {
+                            if (!ifStatement.SkipCommands)
+                            {
+                                if (int.TryParse(listForCommands[1], out int valueforxaxis) &&
+                                    int.TryParse(listForCommands[2], out int valueforyaxis))
+                                {
+                                    penposition = new Point(valueforxaxis, valueforyaxis);
+                                    pictureBox1.Refresh();
+                                }
+                                else
+                                {
+                                    SetFeedbackMessage("Invalid arguments for moveto command.");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            SetFeedbackMessage("Incorrect amount of arguments for moveto command.");
+                        }
+                        break;
+
+                    case "drawto":
+                        if (listForCommands.Length == 3)
+                        {
+                            if (!ifStatement.SkipCommands)
+                            {
+                                if (int.TryParse(listForCommands[1], out int valueforxaxis) &&
+                                int.TryParse(listForCommands[2], out int valueforyaxis))
+                                {
+                                    command.DrawTo(command, valueforxaxis, valueforyaxis);
+                                    penposition = new Point(valueforxaxis, valueforyaxis);
+                                    pictureBox1.Refresh();
+                                }
+                                else
+                                {
+                                    SetFeedbackMessage("Invalid arguments for drawto command.");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            SetFeedbackMessage("Incorrect amount of arguments for drawto");
+                        }
+                        break;
+
+                    case "pen":
+                        if (listForCommands.Length == 2)
+                        {
+                            if (!ifStatement.SkipCommands)
+                            {
+                                try
+                                {
+                                    if (listForCommands[1].Equals("yellow") || listForCommands[1].Equals("white") ||
+                                        listForCommands[1].Equals("red") || listForCommands[1].Equals("green") ||
+                                        listForCommands[1].Equals("blue") || listForCommands[1].Equals("pink") ||
+                                        listForCommands[1].Equals("purple") || listForCommands[1].Equals("orange"))
+                                    {
+                                        command.PenColor(listForCommands[1], pen);
+                                    }
+                                    else
+                                    {
+                                        SetFeedbackMessage("Try entering one of these colors: green, blue, pink, white, yellow, orange, red, purple");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    SetFeedbackMessage("An error occurred: " + ex.Message);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            SetFeedbackMessage("Invalid number of parameters for the 'pen' command.");
+                        }
+                        break;
+
+                    case "fill":
+                        if (listForCommands.Length == 2)
+                        {
+                            if (!ifStatement.SkipCommands)
+                            {
+                                try
+                                {
+                                    if (command.Fill(listForCommands[1]))
+                                    {
+                                        GiveBoolForFillColor = true;
+                                    }
+                                    else
+                                    {
+                                        GiveBoolForFillColor = false;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    SetFeedbackMessage("An error occurred: " + ex.Message);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            SetFeedbackMessage("Incorrect amount of arguments for fill command.");
+                        }
+                        break;
+                    case "while":
+                        if (!ifStatement.SkipCommands)
+                        {
+                            LoopCommand(converttostring);
+                        }
+                        break;
+                    case "endloop":
+                        if (!ifStatement.SkipCommands)
+                        {
+                            //continue;
+                        }
+                        break;
+                    
+
+                    case "reset":
+                        if (listForCommands.Length == 1)
+                        {
+                            penposition = new Point(10, 10);
+                            g.Clear(Color.Black);
                             pictureBox1.Refresh();
                         }
                         else
                         {
-                            SetFeedbackMessage("Invalid arguments for moveto command.");
+                            SetFeedbackMessage("Reset does not take arguments.");
                         }
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Incorrect amount of arguments for moveto command.");
-                    }
-                    break;
+                        break;
 
-                case "drawto":
-                    if (listForCommands.Length == 3)
-                    {
-                        if (int.TryParse(listForCommands[1], out int valueforxaxis) &&
-                            int.TryParse(listForCommands[2], out int valueforyaxis))
+                    case "clear":
+                        if (listForCommands.Length == 1)
                         {
-                            command.DrawTo(command, valueforxaxis, valueforyaxis);
-                            penposition = new Point(valueforxaxis, valueforyaxis);
+                            g.Clear(Color.Black);
                             pictureBox1.Refresh();
                         }
                         else
                         {
-                            SetFeedbackMessage("Invalid arguments for drawto command.");
+                            SetFeedbackMessage("Clear does not take arguments.");
                         }
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Incorect amount of arguments for drawto command.");
-                    }
-                    break;
+                        break;
 
-                case "pen":
-                    if (listForCommands.Length == 2)
-                    {
-                        if (listForCommands[1].Equals("yellow") || listForCommands[1].Equals("white") ||
-                            listForCommands[1].Equals("red") || listForCommands[1].Equals("green") ||
-                            listForCommands[1].Equals("blue") || listForCommands[1].Equals("pink") ||
-                            listForCommands[1].Equals("purple") || listForCommands[1].Equals("orange"))
+                    default:
+                        if (!ifStatement.SkipCommands)  // Check if commands should be skipped
                         {
-                            command.PenColor(listForCommands[1], pen);
-
+                            SetFeedbackMessage($"Invalid command: {listForCommands[0]}");
                         }
-                        else
-                        {
-                            MessageBox.Show("Try entering one of these colors: green, blue, pink, white, yellow, orange, red, purple");
-                        }
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Incorect amount of arguments for pen command.");
-                    }
-                    break;
-
-                case "fill":
-                    if (listForCommands.Length == 2)
-                    {
-                        try
-                        {
-                            if (command.Fill(listForCommands[1]))
-                            {
-                                GiveBoolForFillColor = true;
-                            }
-                            else
-                            {
-                                GiveBoolForFillColor = false;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            SetFeedbackMessage("An error occurred: " + ex.Message);
-                        }
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Incorrect amount of arguments for fill command.");
-                    }
-                    break;
-
-                case "reset":
-                    // Reset the pen position
-                    if (listForCommands.Length == 1)
-                    {
-                        penposition = new Point(10, 10);
-                        g.Clear(Color.Black);
-                        pictureBox1.Refresh();
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Reset does not take arguements.");
-                    }
-
-                    break;
-
-                case "clear":
-                    // Clear the canvas
-                    if (listForCommands.Length == 1)
-                    {
-                        g.Clear(Color.Black);
-                        pictureBox1.Refresh();
-                    }
-                    else
-                    {
-                        SetFeedbackMessage("Clear does not take arguements.");
-                    }
-
-                    break;
-
-                default:
-                    SetFeedbackMessage($"Invalid command: {listForCommands[0]}");
-                    break;
+                        break;
+                }
             }
         }
+
+        public void LoopCommand(string command)
+        {
+            try
+            {
+                if (!ifStatement.SkipCommands)
+                {
+                    if (loop.IsLoopStartCommand(command))
+                    {
+                        int loopCount = loop.GetLoopCount(command);
+                        int startIndex = Array.IndexOf(textBox1.Lines, command);
+
+                        while (loopCount > 0)
+                        {
+                            for (int i = startIndex + 1; i < textBox1.Lines.Length; i++)
+                            {
+                                string loopCommand = textBox1.Lines[i].ToLower();
+
+                                if (loop.IsLoopStartCommand(loopCommand))
+                                {
+                                    loopCount++;
+                                }
+                                else if (loopCommand.Contains("endloop"))
+                                {
+                                    loopCount--;
+                                }
+
+                                if (loopCount == 0)
+                                {
+                                    break;
+                                }
+
+                                storeSinglelineCode = loopCommand;
+                                storeSinglelineCode = storeSinglelineCode.ToLower();
+                                string[] lines = storeSinglelineCode.Split('\n');
+
+                                if (lines.Length > 0 && !string.IsNullOrWhiteSpace(lines[0]))
+                                {
+                                    string[] getloopcommand = lines[0].Split(new char[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                    CommandsInCommandLine(getloopcommand);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                SetFeedbackMessage($"Error in loop command: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                SetFeedbackMessage($"An unexpected error occurred: {ex.Message}");
+            }
+        }
+
+
+
+        private void ExecuteIfStatement(string[] listForCommands)
+        {
+            if (listForCommands.Length == 4)
+            {
+                if (int.TryParse(listForCommands[1], out int operand1) &&
+                    int.TryParse(listForCommands[3], out int operand2))
+                {
+                    ifStatement.CheckCondition(operand1, operand2, listForCommands[2]);
+                }
+                else
+                {
+                    SetFeedbackMessage("Invalid operands for the if statement.");
+                }
+            }
+            else
+            {
+                SetFeedbackMessage("Incorrect number of arguments for the if statement.");
+            }
+
+            if (!ifStatement.ConditionMet)
+            {
+                // Skip the commands inside if/endif block
+                SetFeedbackMessage("Condition not met. Skipping commands inside if statement.");
+                ifStatement.SkipCommands = true;
+            }
+            // else, condition is met, so continue with execution
+        }
+
+
 
 
         private void SetFeedbackMessage(string message)
@@ -313,21 +665,35 @@ namespace ASEGraphics
         }
 
 
+        /// <summary>
+        /// Gets the current pen position on the canvas.
+        /// </summary>
         public Point PenPosition
         {
             get { return penposition; }
         }
 
+
+        // <summary>
+        /// Gets the background color of the canvas.
+        /// </summary>
         public Color BackgroundColor
         {
             get { return Backgroudcolor; }
         }
 
+        // <summary>
+        /// Gets the TextBox control associated with the Form.
+        /// </summary>
         public TextBox TextBox1
         {
             get { return textBox1; }
         }
 
+
+        // <summary>
+        /// Gets the feedback message generated by the application.
+        /// </summary>
         public string FeedbackMessage
         {
             get { return feedbackMessage; }
@@ -431,9 +797,15 @@ namespace ASEGraphics
 
         }
 
-        private void pictureBox1_Click(object sender, EventArgs e)
+        private void textBox3_TextChanged(object sender, EventArgs e)
         {
 
         }
+
+        private void pictureBox1_Click(object sender, EventArgs e)
+        {
+            pictureBox1.Refresh();
+        }
+
     }
 }
